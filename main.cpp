@@ -2,6 +2,7 @@
 #include <windows.h>
 #include<d3d12.h>
 #include<dxgi1_6.h>
+#include<dxgidebug.h>
 
 #include<format>
 #include<cstdint>
@@ -10,6 +11,7 @@
 
 #pragma comment(lib,"d3d12.lib")
 #pragma comment(lib,"dxgi.lib")
+#pragma comment(lib,"dxguid.lib")
 
 std::wstring ConvertString(const std::string& str) {
 	if (str.empty()) {
@@ -163,28 +165,41 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	}
 #endif // _DEBUG
 
-
+	//コマンドキューを生成する
 	ID3D12CommandQueue* commandQueue = nullptr;
 	D3D12_COMMAND_QUEUE_DESC commandQueueDesc{};
 	hr = device->CreateCommandQueue(&commandQueueDesc, IID_PPV_ARGS(&commandQueue));
 	assert(SUCCEEDED(hr));
-	ID3D12CommandAllocator* CommandAllocator = nullptr;
-	hr = device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&CommandAllocator));
+
+	//コマンドアロケーターを生成する
+	ID3D12CommandAllocator* commandAllocator = nullptr;
+	hr = device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&commandAllocator));
 	assert(SUCCEEDED(hr));
+
+	//コマンドリストを生成する
 	ID3D12GraphicsCommandList* commandList = nullptr;
-	hr = device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, CommandAllocator, nullptr, IID_PPV_ARGS(&commandList));
+	hr = device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, commandAllocator, nullptr, IID_PPV_ARGS(&commandList));
 	assert(SUCCEEDED(hr));
+
+	//スワップチェーンを生成する
 	IDXGISwapChain4* swapChain = nullptr;
 	DXGI_SWAP_CHAIN_DESC1 swapChainDesc{};
-	swapChainDesc.Width = kClientWidth;
-	swapChainDesc.Height = kClientHeight;
-	swapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	swapChainDesc.SampleDesc.Count = 1;
-	swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-	swapChainDesc.BufferCount = 2;
-	swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
+	swapChainDesc.Width = kClientWidth;//画面の幅。ウィンドウのクライアント領域を同じものにしておく
+	swapChainDesc.Height = kClientHeight;//画面の高さ。ウィンドウのクライアント領域を同じものにしておく
+	swapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;//色の形式
+	swapChainDesc.SampleDesc.Count = 1;//マルチサンプルしない
+	swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;//描画のターゲットとして描写する
+	swapChainDesc.BufferCount = 2;//ダブルバッファ
+	swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;//モニタにうつしたら中身を破棄
+
+	//コマンドキュー、ウィンドウハンドル、設定を渡して生成する
 	hr = dxgiFactory->CreateSwapChainForHwnd(commandQueue, hwnd, &swapChainDesc, nullptr, nullptr, reinterpret_cast<IDXGISwapChain1**>(&swapChain));
 	assert(SUCCEEDED(hr));
+
+
+
+
+
 
 	ID3D12DescriptorHeap* rtvDescriptorHeap = nullptr;
 	D3D12_DESCRIPTOR_HEAP_DESC rtvDescriptorHeapDesc{};
@@ -199,81 +214,39 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	hr = swapChain->GetBuffer(1, IID_PPV_ARGS(&swapChainResources[1]));
 	assert(SUCCEEDED(hr));
 
+	//RTVの設定
 	D3D12_RENDER_TARGET_VIEW_DESC rtvDesc{};
-	rtvDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
+	rtvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
 	rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+	//ディスクリプタの先頭を取得する
 	D3D12_CPU_DESCRIPTOR_HANDLE rtvStartHandle = rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+	//RTVを二つ作るのでディスクリプタを二つ用意
 	D3D12_CPU_DESCRIPTOR_HANDLE rtvHandles[2];
+	//まず一つ目を作る。一つ目は最初のところに作る。作る場所をこちらで指定してあげる必要がある
 	rtvHandles[0] = rtvStartHandle;
 	device->CreateRenderTargetView(swapChainResources[0], &rtvDesc, rtvHandles[0]);
+	//二つ目のディスクリプタハンドルを作る
 	rtvHandles[1].ptr = rtvHandles[0].ptr + device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+	//二つ目をt来る
 	device->CreateRenderTargetView(swapChainResources[1], &rtvDesc, rtvHandles[1]);
+
+
+
+
 	typedef struct D3D12_CPU_DESCRIPTOR_HANDLE {
 		SIZE_T ptr;
 	}D3D12_CPU_DESCRIPTOR_HANDLE;
 	rtvHandles[0] = rtvStartHandle;
 	//rtvHandles[1].ptr = rtvHandles[0].ptr + device->GetDescriptorHandleIncrementSize();
 
-	UINT backBufferIndex = swapChain->GetCurrentBackBufferIndex();
-
-	//TransitionBarrierの設定
-	D3D12_RESOURCE_BARRIER barrier{};
-	//今回のバリアはTransition
-	barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-	//Noneにしておく
-	barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-	//バリアを張る対象のリソース。現在のバックアップに対して行う
-	barrier.Transition.pResource = swapChainResources[backBufferIndex];
-	//遷移前（現在）のResourceState
-	barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
-	//遷移後のResourceState
-	barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
-	//TransitionBarrierを張る
-	commandList->ResourceBarrier(1, &barrier);
-
-	commandList->OMSetRenderTargets(1, &rtvHandles[backBufferIndex], false, nullptr);
-	float clearColor[] = { 0.1f,0.25f,0.5f,1.0f };
-	commandList->ClearRenderTargetView(rtvHandles[backBufferIndex], clearColor, 0, nullptr);
-
-	barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
-	barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
-	//TransitionBarrierを張る
-	commandList->ResourceBarrier(1, &barrier);
-
-	hr = commandList->Close();
-	assert(SUCCEEDED(hr));
 
 	ID3D12Fence* fence = nullptr;
 	uint64_t fenceValue = 0;
 	hr = device->CreateFence(fenceValue, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence));
-	assert(SUCCEEDED(&hr));
+	assert(SUCCEEDED(hr));
 	//Fenceのsignalを持つためのイベントを作成する
 	HANDLE fennceEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 	assert(fennceEvent != nullptr);
-
-	ID3D12CommandList* commandLists[] = { commandList };
-	commandQueue->ExecuteCommandLists(1, commandLists);
-	swapChain->Present(1, 0);
-
-	//Fenceの値を更新
-	fenceValue++;
-	//GPUがここまでたどり着いたときにfenceの値を指定した値に代入するようsignalを送る
-	commandQueue->Signal(fence, fenceValue);
-
-	//Fenceの値がSignal値にたどり着いているか確認する
-	if (fence->GetCompletedValue()<fenceValue)
-	{
-		//指定したSignalにたどり着いていないのでたどり着くまで待つようにイベントを設定する
-		fence->SetEventOnCompletion(fenceValue, fennceEvent);
-		//イベントを待つ
-		WaitForSingleObject(fennceEvent, INFINITE);
-	}
-
-	hr = CommandAllocator->Reset();
-	assert(SUCCEEDED(hr));
-	hr = commandList->Reset(CommandAllocator, nullptr);
-	assert(SUCCEEDED(hr));
-
 
 	MSG msg{};
 	while (msg.message != WM_QUIT) {
@@ -285,7 +258,87 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		else {
 			//ゲームの処理
 
+			UINT backBufferIndex = swapChain->GetCurrentBackBufferIndex();
+
+			//TransitionBarrierの設定
+			D3D12_RESOURCE_BARRIER barrier{};
+			//今回のバリアはTransition
+			barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+			//Noneにしておく
+			barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+			//バリアを張る対象のリソース。現在のバックアップに対して行う
+			barrier.Transition.pResource = swapChainResources[backBufferIndex];
+			//遷移前（現在）のResourceState
+			barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+			//遷移後のResourceState
+			barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+			//TransitionBarrierを張る
+			commandList->ResourceBarrier(1, &barrier);
+
+			commandList->OMSetRenderTargets(1, &rtvHandles[backBufferIndex], false, nullptr);
+			float clearColor[] = { 0.1f,0.25f,0.5f,1.0f };
+			commandList->ClearRenderTargetView(rtvHandles[backBufferIndex], clearColor, 0, nullptr);
+
+			barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+			barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+			//TransitionBarrierを張る
+			commandList->ResourceBarrier(1, &barrier);
+
+			hr = commandList->Close();
+			assert(SUCCEEDED(hr));
+
+
+
+			ID3D12CommandList* commandLists[] = { commandList };
+			commandQueue->ExecuteCommandLists(1, commandLists);
+			swapChain->Present(1, 0);
+
+			//Fenceの値を更新
+			fenceValue++;
+			//GPUがここまでたどり着いたときにfenceの値を指定した値に代入するようsignalを送る
+			commandQueue->Signal(fence, fenceValue);
+
+			//Fenceの値がSignal値にたどり着いているか確認する
+			if (fence->GetCompletedValue() < fenceValue)
+			{
+				//指定したSignalにたどり着いていないのでたどり着くまで待つようにイベントを設定する
+				fence->SetEventOnCompletion(fenceValue, fennceEvent);
+				//イベントを待つ
+				WaitForSingleObject(fennceEvent, INFINITE);
+			}
+
+			hr = commandAllocator->Reset();
+			assert(SUCCEEDED(hr));
+			hr = commandList->Reset(commandAllocator, nullptr);
+			assert(SUCCEEDED(hr));
+
 		}
+	}
+
+	CloseHandle(fennceEvent);
+	fence->Release();
+	rtvDescriptorHeap->Release();
+	swapChainResources[0]->Release();
+	swapChainResources[1]->Release();
+	swapChain->Release();
+	commandList->Release();
+	commandAllocator->Release();
+	commandQueue->Release();
+	device->Release();
+	useAdapter->Release();
+	dxgiFactory->Release();
+#ifdef _DEBUG
+	debugController->Release();
+#endif // _DEBUG
+	CloseWindow(hwnd);
+
+	IDXGIDebug1* debug;
+	if (SUCCEEDED(DXGIGetDebugInterface1(0,IID_PPV_ARGS(&debug))))
+	{
+		debug->ReportLiveObjects(DXGI_DEBUG_ALL, DXGI_DEBUG_RLO_ALL);
+		debug->ReportLiveObjects(DXGI_DEBUG_APP, DXGI_DEBUG_RLO_ALL);
+		debug->ReportLiveObjects(DXGI_DEBUG_D3D12, DXGI_DEBUG_RLO_ALL);
+		debug->Release();
 	}
 
 	return 0;
