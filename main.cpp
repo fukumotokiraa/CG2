@@ -215,15 +215,60 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	//rtvHandles[1].ptr = rtvHandles[0].ptr + device->GetDescriptorHandleIncrementSize();
 
 	UINT backBufferIndex = swapChain->GetCurrentBackBufferIndex();
+
+	//TransitionBarrierの設定
+	D3D12_RESOURCE_BARRIER barrier{};
+	//今回のバリアはTransition
+	barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+	//Noneにしておく
+	barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+	//バリアを張る対象のリソース。現在のバックアップに対して行う
+	barrier.Transition.pResource = swapChainResources[backBufferIndex];
+	//遷移前（現在）のResourceState
+	barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+	//遷移後のResourceState
+	barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+	//TransitionBarrierを張る
+	commandList->ResourceBarrier(1, &barrier);
+
 	commandList->OMSetRenderTargets(1, &rtvHandles[backBufferIndex], false, nullptr);
 	float clearColor[] = { 0.1f,0.25f,0.5f,1.0f };
 	commandList->ClearRenderTargetView(rtvHandles[backBufferIndex], clearColor, 0, nullptr);
+
+	barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+	barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+	//TransitionBarrierを張る
+	commandList->ResourceBarrier(1, &barrier);
+
 	hr = commandList->Close();
 	assert(SUCCEEDED(hr));
+
+	ID3D12Fence* fence = nullptr;
+	uint64_t fenceValue = 0;
+	hr = device->CreateFence(fenceValue, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence));
+	assert(SUCCEEDED(&hr));
+	//Fenceのsignalを持つためのイベントを作成する
+	HANDLE fennceEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+	assert(fennceEvent != nullptr);
 
 	ID3D12CommandList* commandLists[] = { commandList };
 	commandQueue->ExecuteCommandLists(1, commandLists);
 	swapChain->Present(1, 0);
+
+	//Fenceの値を更新
+	fenceValue++;
+	//GPUがここまでたどり着いたときにfenceの値を指定した値に代入するようsignalを送る
+	commandQueue->Signal(fence, fenceValue);
+
+	//Fenceの値がSignal値にたどり着いているか確認する
+	if (fence->GetCompletedValue()<fenceValue)
+	{
+		//指定したSignalにたどり着いていないのでたどり着くまで待つようにイベントを設定する
+		fence->SetEventOnCompletion(fenceValue, fennceEvent);
+		//イベントを待つ
+		WaitForSingleObject(fennceEvent, INFINITE);
+	}
+
 	hr = CommandAllocator->Reset();
 	assert(SUCCEEDED(hr));
 	hr = commandList->Reset(CommandAllocator, nullptr);
