@@ -4,6 +4,8 @@
 #include<dxgi1_6.h>
 #include<dxgidebug.h>
 #include<dxcapi.h>
+#define _USE_MATH_DEFINES
+#include<math.h>
 #include"Vector4.h"
 #include"Vector3.h"
 #include"Vector2.h"
@@ -69,7 +71,7 @@ std::string ConvertString(const std::wstring& str) {
 }
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
-	if (ImGui_ImplWin32_WndProcHandler(hwnd,msg,wparam,lparam))
+	if (ImGui_ImplWin32_WndProcHandler(hwnd, msg, wparam, lparam))
 	{
 		return true;
 	}
@@ -141,7 +143,7 @@ IDxcBlob* CompileShader(
 		//警告・エラーダメゼッタイ
 		assert(false);
 	}
-	
+
 	//4.Compile結果を受け取って返す
 	//コンパイル結果から実行用のバイナリ部分を取得
 	IDxcBlob* shaderBlob = nullptr;
@@ -407,7 +409,7 @@ Matrix4x4 Multiply(const Matrix4x4& m1, const Matrix4x4& m2) {
 		m1.m[3][0] * m2.m[0][3] + m1.m[3][1] * m2.m[1][3] + m1.m[3][2] * m2.m[2][3] + m1.m[3][3] * m2.m[3][3],
 	};
 };
-Matrix4x4 MakeAffineMatrix( const Vector3& scale, Vector3& radian, const Vector3& translate) {
+Matrix4x4 MakeAffineMatrix(const Vector3& scale, Vector3& radian, const Vector3& translate) {
 	Matrix4x4 rotateXMatrix = MakeRotateXMatrix(radian.x);
 	Matrix4x4 rotateYMatrix = MakeRotateYMatrix(radian.y);
 	Matrix4x4 rotateZMatrix = MakeRotateZMatrix(radian.z);
@@ -445,7 +447,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 	OutputDebugStringA("Hello,DirectX!\n");
 
-
+	const uint32_t kSubdivision = 16;
+	const uint32_t kNumVertex = kSubdivision * kSubdivision * 6;
 
 	const int32_t kClientWidth = 1280;
 	const int32_t kClientHeight = 720;
@@ -484,7 +487,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	assert(SUCCEEDED(hr));
 
 	IDXGIAdapter4* useAdapter = nullptr;
-	for (UINT i = 0; dxgiFactory ->EnumAdapterByGpuPreference(i,DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE,IID_PPV_ARGS(&useAdapter))!=DXGI_ERROR_NOT_FOUND;++i)
+	for (UINT i = 0; dxgiFactory->EnumAdapterByGpuPreference(i, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE, IID_PPV_ARGS(&useAdapter)) != DXGI_ERROR_NOT_FOUND; ++i)
 	{
 		DXGI_ADAPTER_DESC3 adapterDesc{};
 		hr = useAdapter->GetDesc3(&adapterDesc);
@@ -811,14 +814,14 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 
 
-	ID3D12Resource* vertexResource = CreateBufferResource(device, sizeof(VertexData) * 6);
+	ID3D12Resource* vertexResource = CreateBufferResource(device, sizeof(VertexData) * kNumVertex);
 
 	//頂点バッファビューを作成する
 	D3D12_VERTEX_BUFFER_VIEW vertexBufferView{};
 	//リソースの先頭のアドレスから使う
 	vertexBufferView.BufferLocation = vertexResource->GetGPUVirtualAddress();
 	//使用するリソースのサイズは頂点３つ分のサイズ
-	vertexBufferView.SizeInBytes = sizeof(VertexData) * 6;
+	vertexBufferView.SizeInBytes = sizeof(VertexData) * kNumVertex;
 	//１頂点あたりのサイズ
 	vertexBufferView.StrideInBytes = sizeof(VertexData);
 
@@ -827,25 +830,83 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	VertexData* vertexData = nullptr;
 	//書き込むためのアドレスを取得
 	vertexResource->Map(0, nullptr, reinterpret_cast<void**>(&vertexData));
-	//左下
-	vertexData[0].position = { -0.5f,-0.5f,0.0f,1.0f };
-	vertexData[0].texcoord = { 0.0f,1.0f };
-	//上
-	vertexData[1].position = { 0.0f,0.5f,0.0f,1.0f };
-	vertexData[1].texcoord = { 0.5f,0.0f };
-	//右下
-	vertexData[2].position = { 0.5f,-0.5f,0.0f,1.0f };
-	vertexData[2].texcoord = { 1.0f,1.0f };
+	////左下
+	//vertexData[0].position = { -0.5f,-0.5f,0.0f,1.0f };
+	//vertexData[0].texcoord = { 0.0f,1.0f };
+	////上
+	//vertexData[1].position = { 0.0f,0.5f,0.0f,1.0f };
+	//vertexData[1].texcoord = { 0.5f,0.0f };
+	////右下
+	//vertexData[2].position = { 0.5f,-0.5f,0.0f,1.0f };
+	//vertexData[2].texcoord = { 1.0f,1.0f };
 
-	//左下2
-	vertexData[3].position = { -0.5f,-0.5f,0.5f,1.0f };
-	vertexData[3].texcoord = { 0.0f,1.0f };
-	//上2
-	vertexData[4].position = { 0.0f,0.0f,0.0f,1.0f };
-	vertexData[4].texcoord = { 0.5f,0.0f };
-	//右下2
-	vertexData[5].position = { 0.5f,-0.5f,-0.5f,1.0f };
-	vertexData[5].texcoord = { 1.0f,1.0f };
+	////左下2
+	//vertexData[3].position = { -0.5f,-0.5f,0.5f,1.0f };
+	//vertexData[3].texcoord = { 0.0f,1.0f };
+	////上2
+	//vertexData[4].position = { 0.0f,0.0f,0.0f,1.0f };
+	//vertexData[4].texcoord = { 0.5f,0.0f };
+	////右下2
+	//vertexData[5].position = { 0.5f,-0.5f,-0.5f,1.0f };
+	//vertexData[5].texcoord = { 1.0f,1.0f };
+
+	//球の計算
+	//経度分割1つ分の角度
+	const float kLonEvery = float(M_PI) * 2.0f / kSubdivision;
+	//緯度分割1つ分の角度
+	const float kLatEvery = float(M_PI) / kSubdivision;
+	//緯度の方向に分割
+	for (uint32_t latIndex = 0; latIndex < kSubdivision; latIndex++)
+	{
+		float lat = float(-M_PI) / 2.0f + kLatEvery * latIndex;
+		//経度の方向に分割しながら線を描く
+		for (uint32_t lonIndex = 0; lonIndex < kSubdivision; lonIndex++)
+		{
+			float u = float(lonIndex) / float(kSubdivision);
+			float v = 1.0f - float(latIndex) / float(kSubdivision);
+			float nextU = float(lonIndex + 1) / float(kSubdivision);
+			float nextV = 1.0f - float(latIndex + 1) / float(kSubdivision);
+			uint32_t start = uint32_t((latIndex * kSubdivision + lonIndex) * 6);
+			float lon = lonIndex * kLonEvery;
+			//頂点にデータを入力する
+			vertexData[start].position.x = cosf(lat) * cosf(lon);
+			vertexData[start].position.y = sinf(lat);
+			vertexData[start].position.z = cosf(lat) * sinf(lon);
+			vertexData[start].position.w = 1.0f;
+			vertexData[start].texcoord = { u,v };
+
+			vertexData[start + 1].position.x = cosf(lat + kLatEvery) * cosf(lon);
+			vertexData[start + 1].position.y = sinf(lat + kLatEvery);
+			vertexData[start + 1].position.z = cosf(lat + kLatEvery) * sinf(lon);
+			vertexData[start + 1].position.w = 1.0f;
+
+			vertexData[start + 1].texcoord = { u,nextV };
+
+			vertexData[start + 2].position.x = cosf(lat) * cosf(lon + kLonEvery);
+			vertexData[start + 2].position.y = sinf(lat);
+			vertexData[start + 2].position.z = cosf(lat) * sinf(lon + kLonEvery);
+			vertexData[start + 2].position.w = 1.0f;
+			vertexData[start + 2].texcoord = { nextU,v };
+
+			vertexData[start + 3].position.x = cosf(lat + kLatEvery) * cosf(lon + kLonEvery);
+			vertexData[start + 3].position.y = sinf(lat + kLatEvery);
+			vertexData[start + 3].position.z = cosf(lat + kLatEvery) * sinf(lon + kLonEvery);
+			vertexData[start + 3].position.w = 1.0f;
+			vertexData[start + 3].texcoord = { nextU,nextV };
+
+			vertexData[start + 4].position.x = cosf(lat) * cosf(lon + kLonEvery);
+			vertexData[start + 4].position.y = sinf(lat);
+			vertexData[start + 4].position.z = cosf(lat) * sinf(lon + kLonEvery);
+			vertexData[start + 4].position.w = 1.0f;
+			vertexData[start + 4].texcoord = { nextU,v };
+
+			vertexData[start + 5].position.x = cosf(lat + kLatEvery) * cosf(lon);
+			vertexData[start + 5].position.y = sinf(lat + kLatEvery);
+			vertexData[start + 5].position.z = cosf(lat + kLatEvery) * sinf(lon);
+			vertexData[start + 5].position.w = 1.0f;
+			vertexData[start + 5].texcoord = { u,nextV };
+		}
+	}
 
 	//ビューポート
 	D3D12_VIEWPORT viewport{};
@@ -877,7 +938,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	//Transform変数を作る
 	Transform transform{ {1.0f,1.0f,1.0f},{0.0f,0.0f,0.0f},{0.0f,0.0f,0.0f} };
 	Transform cameraTransform{ {1.0f,1.0f,1.0f},{0.0f,0.0f,0.0f},{0.0f,0.0f,-5.0f} };
-	
+
 	//ImGuiの初期化。
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
@@ -928,7 +989,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 	MSG msg{};
 	while (msg.message != WM_QUIT) {
-		if (PeekMessage(&msg,NULL,0,0,PM_REMOVE))
+		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
 		{
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
@@ -991,7 +1052,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			//SRVのDescriptorTableの先頭を設定。２はrootParameter[2]である。
 			commandList->SetGraphicsRootDescriptorTable(2, textureSrvHandleGPU);
 			//描画（DrawCall/ドローコール）。３頂点で１つのインスタンス。インスタンスについては今後
-			commandList->DrawInstanced(6, 1, 0, 0);
+			//commandList->DrawInstanced(6, 1, 0, 0);
+			commandList->DrawInstanced(kNumVertex, 1, 0, 0);
 			//指定した深度で画面全体をクリアする
 			commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 			//spriteの描画
@@ -1104,7 +1166,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	CloseWindow(hwnd);
 
 	IDXGIDebug1* debug;
-	if (SUCCEEDED(DXGIGetDebugInterface1(0,IID_PPV_ARGS(&debug))))
+	if (SUCCEEDED(DXGIGetDebugInterface1(0, IID_PPV_ARGS(&debug))))
 	{
 		debug->ReportLiveObjects(DXGI_DEBUG_ALL, DXGI_DEBUG_RLO_ALL);
 		debug->ReportLiveObjects(DXGI_DEBUG_APP, DXGI_DEBUG_RLO_ALL);
