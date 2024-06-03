@@ -1200,6 +1200,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	depthStencilResource->Release();
 	transformationMatrixResourceSprite->Release();
 	vertexResourceSprite->Release();
+	textureResource2->Release();
 
 #ifdef _DEBUG
 	debugController->Release();
