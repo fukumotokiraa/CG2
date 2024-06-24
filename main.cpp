@@ -9,6 +9,7 @@
 #include"Vector4.h"
 #include"Vector3.h"
 #include"Vector2.h"
+#include"Matrix3x3.h"
 #include"Matrix4x4.h"
 #include"externals/imgui/imgui.h"
 #include"externals/imgui/imgui_impl_dx12.h"
@@ -45,8 +46,9 @@ struct VertexData {
 struct Material {
 	Vector4 color;
 	bool enableLighting;
+	float padding[3];
+	Matrix4x4 uvTransform;
 };
-Material materialDataSprite;
 
 struct TransformationMatrix {
 	Matrix4x4 WVP;
@@ -461,6 +463,20 @@ Matrix4x4 MakeAffineMatrix(const Vector3& scale, Vector3& radian, const Vector3&
 	};
 }
 
+Matrix4x4 MakeScaleMatrix(const Vector3& scale) {
+	return{ scale.x,0,0,0,
+		   0,scale.y,0,0,
+		   0,0,scale.z,0,
+		   0,0,0,1 };
+};
+
+Matrix4x4 MakeTranslateMatrix(const Vector3& translate) {
+	return { 1,0,0,0,
+			0,1,0,0,
+			0,0,0,0,
+			translate.x,translate.y,translate.z,1 };
+};
+
 float LengthSquared(const Vector3& v) {
 	return (v.x * v.x + v.y * v.y + v.z * v.z);
 }
@@ -797,6 +813,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	//白
 	materialData->color = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
 
+	materialData->uvTransform = MakeIdentity4x4();
+
 
 	//シリアライズしてバイナリにする
 	ID3DBlob* signatureBlob = nullptr;
@@ -882,15 +900,23 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	hr = device->CreateGraphicsPipelineState(&graphicsPipelineStateDesc, IID_PPV_ARGS(&graphicsPipelineState));
 	assert(SUCCEEDED(hr));
 
-	////スプライト用のマテリアルリソースを作る
-	//ID3D12Resource* materialResourceSprite = CreateBufferResource(device, sizeof(Material));
-	//Material* materialDataSprite = nullptr;
-	////書き込むためのアドレスを取得
-	//materialResourceSprite->Map(0, nullptr, reinterpret_cast<void**>(&materialDataSprite));
-	////白
-	//materialDataSprite->color = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
-	////spriteはlightingしないのでfalseを設定する
-	//materialDataSprite->enableLighting = false;
+	//スプライト用のマテリアルリソースを作る
+	ID3D12Resource* materialResourceSprite = CreateBufferResource(device, sizeof(Material));
+	Material* materialDataSprite = nullptr;
+	//書き込むためのアドレスを取得
+	materialResourceSprite->Map(0, nullptr, reinterpret_cast<void**>(&materialDataSprite));
+	//白
+	materialDataSprite->color = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
+	//spriteはlightingしないのでfalseを設定する
+	materialDataSprite->enableLighting = false;
+
+	materialDataSprite->uvTransform = MakeIdentity4x4();
+
+	Transform uvTransformSprite{
+		{1.0f,1.0f,1.0f},
+		{0.0f,0.0f,0.0f},
+		{0.0f,0.0f,0.0f}
+	};
 
 	ID3D12Resource* indexResourceSprite = CreateBufferResource(device, sizeof(uint32_t) * 6);
 	D3D12_INDEX_BUFFER_VIEW indexBufferViewSprite{};
@@ -1174,7 +1200,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			ImGui::Checkbox("Light", &materialData->enableLighting);
 			ImGui::DragFloat3("LightDirection", &directionalLightData->direction.x, 0.01f);
 			directionalLightData->direction = Normalize(directionalLightData->direction);
+			ImGui::DragFloat2("UVTranslate", &uvTransformSprite.translate.x, 0.01f, -10.0f, 10.0f);
+			ImGui::DragFloat2("UVScale", &uvTransformSprite.scale.x, 0.01f, -10.0f, 10.0f);
+			ImGui::SliderAngle("UVRotate", &uvTransformSprite.rotate.z);
+			
 			ImGui::End();
+
+
 			//開発用UIの処理。実際に開発用のUIを出す場合はここをゲーム固有の処理に置き換える
 			//ImGui::ShowDemoWindow();
 
@@ -1195,6 +1227,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			//TransitionBarrierを張る
 			commandList->ResourceBarrier(1, &barrier);
 
+			Matrix4x4 uvTransformMatrix = MakeScaleMatrix(uvTransformSprite.scale);
+			uvTransformMatrix = Multiply(uvTransformMatrix, MakeRotateZMatrix(uvTransformSprite.rotate.z));
+			uvTransformMatrix = Multiply(uvTransformMatrix, MakeTranslateMatrix(uvTransformSprite.translate));
+			materialDataSprite->uvTransform = uvTransformMatrix;
 
 			commandList->OMSetRenderTargets(1, &rtvHandles[backBufferIndex], false, nullptr);
 
@@ -1255,6 +1291,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			commandList->IASetIndexBuffer(&indexBufferViewSprite);//IBVを設定
 
 			commandList->SetGraphicsRootDescriptorTable(2, textureSrvHandleGPU);
+
+			commandList->SetGraphicsRootConstantBufferView(0, materialResourceSprite->GetGPUVirtualAddress());
 
 			commandList->DrawIndexedInstanced(6, 1, 0, 0, 0);
 
@@ -1381,6 +1419,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	transformationMatrixResource->Release();
 	indexResourceSprite->Release();
 	indexResourceSphere->Release();
+	materialResourceSprite->Release();
 
 #ifdef _DEBUG
 	debugController->Release();
