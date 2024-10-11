@@ -1014,6 +1014,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	D3D12_BLEND_DESC blendDesc{};
 	//すべての色要素を書き込む
 	blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+	blendDesc.RenderTarget[0].BlendEnable = TRUE;
+	blendDesc.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
+	blendDesc.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
+	blendDesc.RenderTarget[0].DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+	blendDesc.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
+	blendDesc.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
+	blendDesc.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ZERO;
 
 	//RasiterzerStateの設定
 	D3D12_RASTERIZER_DESC rasterizerDesc{};
@@ -1227,6 +1234,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			ImGui::Checkbox("Light", &materialData->enableLighting);
 			ImGui::DragFloat3("LightDirection", &directionalLightData->direction.x, 0.01f);
 			directionalLightData->direction = Normalize(directionalLightData->direction);
+			ImGui::ColorEdit4("Color", &materialData->color.x);
 			ImGui::DragFloat3("ModelPosition", &transform.translate.x, 0.01f, -10.0f, 10.0f);
 			ImGui::DragFloat3("ModelRotate", &transform.rotate.x, 0.01f, -10.0f, 10.0f);
 			ImGui::DragFloat3("ModelScale", &transform.scale.x, 0.01f, -10.0f, 10.0f);
