@@ -969,9 +969,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;//PixelShaderで使う
 	rootParameters[0].Descriptor.ShaderRegister = 0;//レジスタ番号０とバインド
 
-	rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;//CBVを使う
-	rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;//VertexShaderで使う
-	rootParameters[1].Descriptor.ShaderRegister = 0;//レジスタ番号０とバインド
+	//rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;//CBVを使う
+	//rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;//VertexShaderで使う
+	//rootParameters[1].Descriptor.ShaderRegister = 0;//レジスタ番号０とバインド
 
 	rootParameters[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;//DescriptorTableを使う
 	rootParameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;//PixelShaderで使う
@@ -1007,19 +1007,19 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	//rootParameters[1].DescriptorTable.pDescriptorRanges = descriptorRange;
 	//rootParameters[1].DescriptorTable.NumDescriptorRanges = _countof(descriptorRange);
 
-	D3D12_ROOT_PARAMETER rootParametersParticle[2] = {};
+	//D3D12_ROOT_PARAMETER rootParametersParticle[2] = {};
 
 	// Particle用CBVを設定
-	rootParametersParticle[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-	rootParametersParticle[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
-	rootParametersParticle[1].DescriptorTable.pDescriptorRanges = descriptorRangeForInstancing;
-	rootParametersParticle[1].DescriptorTable.NumDescriptorRanges = _countof(descriptorRangeForInstancing);
+	rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+	rootParameters[1].DescriptorTable.pDescriptorRanges = descriptorRangeForInstancing;
+	rootParameters[1].DescriptorTable.NumDescriptorRanges = _countof(descriptorRangeForInstancing);
 
 	// Particle用のRootSignatureを作成
-	D3D12_ROOT_SIGNATURE_DESC descriptionRootSignatureParticle = {};
-	descriptionRootSignatureParticle.NumParameters = _countof(rootParametersParticle);
-	descriptionRootSignatureParticle.pParameters = rootParametersParticle;
-	descriptionRootSignatureParticle.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+	//D3D12_ROOT_SIGNATURE_DESC descriptionRootSignatureParticle = {};
+	//descriptionRootSignatureParticle.NumParameters = _countof(rootParametersParticle);
+	//descriptionRootSignatureParticle.pParameters = rootParametersParticle;
+	//descriptionRootSignatureParticle.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
 
 	//マテリアル用のリソースを作る。今回はcolor１つ分のサイズを用意する
@@ -1052,17 +1052,17 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 
 	// シリアライズしてバイナリにする
-	ID3DBlob* particleSignatureBlob = nullptr;
-	ID3DBlob* particleErrorBlob = nullptr;
-	hr = D3D12SerializeRootSignature(&descriptionRootSignatureParticle, D3D_ROOT_SIGNATURE_VERSION_1, &particleSignatureBlob, &particleErrorBlob);
-	if (FAILED(hr)) {
-		Log(reinterpret_cast<char*>(particleErrorBlob->GetBufferPointer()));
-		assert(false);
-	}
-	// バイナリを元に生成
-	Microsoft::WRL::ComPtr<ID3D12RootSignature> particleRootSignature = nullptr;
-	hr = device->CreateRootSignature(0, particleSignatureBlob->GetBufferPointer(), particleSignatureBlob->GetBufferSize(), IID_PPV_ARGS(&particleRootSignature));
-	assert(SUCCEEDED(hr));
+	//ID3DBlob* particleSignatureBlob = nullptr;
+	//ID3DBlob* particleErrorBlob = nullptr;
+	//hr = D3D12SerializeRootSignature(&descriptionRootSignatureParticle, D3D_ROOT_SIGNATURE_VERSION_1, &particleSignatureBlob, &particleErrorBlob);
+	//if (FAILED(hr)) {
+	//	Log(reinterpret_cast<char*>(particleErrorBlob->GetBufferPointer()));
+	//	assert(false);
+	//}
+	//// バイナリを元に生成
+	//Microsoft::WRL::ComPtr<ID3D12RootSignature> particleRootSignature = nullptr;
+	//hr = device->CreateRootSignature(0, particleSignatureBlob->GetBufferPointer(), particleSignatureBlob->GetBufferSize(), IID_PPV_ARGS(&particleRootSignature));
+	//assert(SUCCEEDED(hr));
 
 	//InputLayout
 	D3D12_INPUT_ELEMENT_DESC inputElementDescs[3] = {};
@@ -1102,10 +1102,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	rasterizerDesc.FillMode = D3D12_FILL_MODE_SOLID;
 
 	//shaderをコンパイルする
-	IDxcBlob* vertexShaderBlob = CompileShader(L"Object3D.VS.hlsl", L"vs_6_0", dxcUtils, dxcCompiler, includeHandler);
+	IDxcBlob* vertexShaderBlob = CompileShader(L"Particle.VS.hlsl", L"vs_6_0", dxcUtils, dxcCompiler, includeHandler);
 	assert(vertexShaderBlob != nullptr);
 
-	IDxcBlob* pixelShaderBlob = CompileShader(L"Object3D.PS.hlsl", L"ps_6_0", dxcUtils, dxcCompiler, includeHandler);
+	IDxcBlob* pixelShaderBlob = CompileShader(L"Particle.PS.hlsl", L"ps_6_0", dxcUtils, dxcCompiler, includeHandler);
 	assert(pixelShaderBlob != nullptr);
 
 	// Particle 用 InputLayout
@@ -1166,45 +1166,45 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	assert(SUCCEEDED(hr));
 
 	// Particle 用 PSO を生成する
-	D3D12_GRAPHICS_PIPELINE_STATE_DESC particlePipelineStateDesc{};
-	particlePipelineStateDesc.pRootSignature = particleRootSignature.Get(); // Particle 用の RootSignature を指定
-	particlePipelineStateDesc.InputLayout = particleInputLayoutDesc; // Particle 用の Input Layout
-	// シェーダーの設定 (粒子用のシェーダーに変更)
-	particlePipelineStateDesc.VS = { particleVertexShaderBlob->GetBufferPointer(), particleVertexShaderBlob->GetBufferSize() };
-	particlePipelineStateDesc.PS = { particlePixelShaderBlob->GetBufferPointer(), particlePixelShaderBlob->GetBufferSize() };
-	// ブレンドステートの設定 (半透明の合成に適した設定に変更)
-	D3D12_BLEND_DESC particleBlendDesc = {};
-	particleBlendDesc.AlphaToCoverageEnable = FALSE;
-	particleBlendDesc.IndependentBlendEnable = FALSE;
-	particleBlendDesc.RenderTarget[0].BlendEnable = TRUE;
-	particleBlendDesc.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
-	particleBlendDesc.RenderTarget[0].DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
-	particleBlendDesc.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
-	particleBlendDesc.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
-	particleBlendDesc.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ZERO;
-	particleBlendDesc.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
-	particleBlendDesc.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
-	particlePipelineStateDesc.BlendState = particleBlendDesc;
-	// ラスタライザーステート (基本的には同じ設定)
-	particlePipelineStateDesc.RasterizerState = rasterizerDesc;
-	// 書き込む RTV の情報
-	particlePipelineStateDesc.NumRenderTargets = 1;
-	particlePipelineStateDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
-	// 利用するトポロジのタイプ (基本的には同じ三角形を指定)
-	particlePipelineStateDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-	// サンプルと深度ステンシル設定 (基本的には同じ)
-	particlePipelineStateDesc.SampleDesc.Count = 1;
-	particlePipelineStateDesc.SampleMask = D3D12_DEFAULT_SAMPLE_MASK;
-	// DepthStencil の設定 (Particle 用に深度ステンシルを無効にしたい場合は設定を変更)
-	D3D12_DEPTH_STENCIL_DESC particleDepthStencilDesc = depthStencilDesc;
-	particleDepthStencilDesc.DepthEnable = FALSE; // 粒子が深度テストを行わないように設定
-	particleDepthStencilDesc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
-	particlePipelineStateDesc.DepthStencilState = particleDepthStencilDesc;
-	particlePipelineStateDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
-	// Particle 用 PSO を生成
-	Microsoft::WRL::ComPtr<ID3D12PipelineState> particlePipelineState = nullptr;
-	hr = device->CreateGraphicsPipelineState(&particlePipelineStateDesc, IID_PPV_ARGS(&particlePipelineState));
-	assert(SUCCEEDED(hr));
+	//D3D12_GRAPHICS_PIPELINE_STATE_DESC particlePipelineStateDesc{};
+	//particlePipelineStateDesc.pRootSignature = particleRootSignature.Get(); // Particle 用の RootSignature を指定
+	//particlePipelineStateDesc.InputLayout = particleInputLayoutDesc; // Particle 用の Input Layout
+	//// シェーダーの設定 (粒子用のシェーダーに変更)
+	//particlePipelineStateDesc.VS = { particleVertexShaderBlob->GetBufferPointer(), particleVertexShaderBlob->GetBufferSize() };
+	//particlePipelineStateDesc.PS = { particlePixelShaderBlob->GetBufferPointer(), particlePixelShaderBlob->GetBufferSize() };
+	//// ブレンドステートの設定 (半透明の合成に適した設定に変更)
+	//D3D12_BLEND_DESC particleBlendDesc = {};
+	//particleBlendDesc.AlphaToCoverageEnable = FALSE;
+	//particleBlendDesc.IndependentBlendEnable = FALSE;
+	//particleBlendDesc.RenderTarget[0].BlendEnable = TRUE;
+	//particleBlendDesc.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
+	//particleBlendDesc.RenderTarget[0].DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+	//particleBlendDesc.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
+	//particleBlendDesc.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
+	//particleBlendDesc.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ZERO;
+	//particleBlendDesc.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
+	//particleBlendDesc.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+	//particlePipelineStateDesc.BlendState = particleBlendDesc;
+	//// ラスタライザーステート (基本的には同じ設定)
+	//particlePipelineStateDesc.RasterizerState = rasterizerDesc;
+	//// 書き込む RTV の情報
+	//particlePipelineStateDesc.NumRenderTargets = 1;
+	//particlePipelineStateDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+	//// 利用するトポロジのタイプ (基本的には同じ三角形を指定)
+	//particlePipelineStateDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	//// サンプルと深度ステンシル設定 (基本的には同じ)
+	//particlePipelineStateDesc.SampleDesc.Count = 1;
+	//particlePipelineStateDesc.SampleMask = D3D12_DEFAULT_SAMPLE_MASK;
+	//// DepthStencil の設定 (Particle 用に深度ステンシルを無効にしたい場合は設定を変更)
+	//D3D12_DEPTH_STENCIL_DESC particleDepthStencilDesc = depthStencilDesc;
+	//particleDepthStencilDesc.DepthEnable = FALSE; // 粒子が深度テストを行わないように設定
+	//particleDepthStencilDesc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+	//particlePipelineStateDesc.DepthStencilState = particleDepthStencilDesc;
+	//particlePipelineStateDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	//// Particle 用 PSO を生成
+	//Microsoft::WRL::ComPtr<ID3D12PipelineState> particlePipelineState = nullptr;
+	//hr = device->CreateGraphicsPipelineState(&particlePipelineStateDesc, IID_PPV_ARGS(&particlePipelineState));
+	//assert(SUCCEEDED(hr));
 
 
 
@@ -1443,7 +1443,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 			//RootSignatureを設定。PSOに設定しているけど別途設定が必要
 			commandList->SetGraphicsRootSignature(rootSignature.Get());
-			commandList->SetGraphicsRootSignature(particleRootSignature.Get());
+			//commandList->SetGraphicsRootSignature(particleRootSignature.Get());
 			commandList->SetPipelineState(graphicsPipelineState.Get());//PSOを設定
 			//マテリアルCBufferの場所を設定
 			commandList->SetGraphicsRootConstantBufferView(0, materialResource->GetGPUVirtualAddress());
@@ -1469,21 +1469,21 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			//commandList->DrawInstanced(6, 1, 0, 0);
 			commandList->DrawInstanced(UINT(modelData.vertices.size()), kNumInstance, 0, 0);
 			//指定した深度で画面全体をクリアする
-			commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
-			////マテリアルCBufferの場所を設定
+			//commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+			//////マテリアルCBufferの場所を設定
+			////commandList->SetGraphicsRootConstantBufferView(0, materialResourceSprite->GetGPUVirtualAddress());
+			////spriteの描画
+			//commandList->IASetVertexBuffers(0, 1, &vertexBufferViewSprite);//VBVを設定
+			////TransformationMatrixCBufferの設定
+			//commandList->SetGraphicsRootConstantBufferView(1, transformationMatrixResourceSprite->GetGPUVirtualAddress());
+
+
+
+			//commandList->SetGraphicsRootDescriptorTable(2, textureSrvHandleGPU);
+
 			//commandList->SetGraphicsRootConstantBufferView(0, materialResourceSprite->GetGPUVirtualAddress());
-			//spriteの描画
-			commandList->IASetVertexBuffers(0, 1, &vertexBufferViewSprite);//VBVを設定
-			//TransformationMatrixCBufferの設定
-			commandList->SetGraphicsRootConstantBufferView(1, transformationMatrixResourceSprite->GetGPUVirtualAddress());
 
-
-
-			commandList->SetGraphicsRootDescriptorTable(2, textureSrvHandleGPU);
-
-			commandList->SetGraphicsRootConstantBufferView(0, materialResourceSprite->GetGPUVirtualAddress());
-
-			commandList->DrawIndexedInstanced(6, 10, 0, 0, 0);
+			//commandList->DrawIndexedInstanced(6, 10, 0, 0, 0);
 
 
 			////描画
