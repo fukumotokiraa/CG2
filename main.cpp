@@ -1372,24 +1372,32 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			ImGui::NewFrame();
 			//ゲームの処理
 			// ImGui UIの追加
-			ImGui::Begin("Triangle Color Picker");           // ウィンドウの開始
-			ImGui::Checkbox("MonsterBall", &isChecked);
-			ImGui::Checkbox("Light", &materialData->enableLighting);
-			ImGui::DragFloat3("LightDirection", &directionalLightData->direction.x, 0.01f);
-			directionalLightData->direction = Normalize(directionalLightData->direction);
-			ImGui::ColorEdit4("Color", &materialData->color.x);
-			ImGui::DragFloat3("ModelPosition", &transform.translate.x, 0.01f, -10.0f, 10.0f);
-			ImGui::DragFloat3("ModelRotate", &transform.rotate.x, 0.01f, -10.0f, 10.0f);
-			ImGui::DragFloat3("ModelScale", &transform.scale.x, 0.01f, -10.0f, 10.0f);
-			ImGui::DragFloat3("Position", &transformSprite.translate.x, 1.0f, 0.0f, 1000.0f);  
-			ImGui::DragFloat3("Rotation", &transformSprite.rotate.x, 0.01f, -10.0f, 10.0f);   
-			ImGui::DragFloat3("Scale", &transformSprite.scale.x, 0.01f, -10.0f, 10.0f);       
-			ImGui::DragFloat2("UVTranslate", &uvTransformSprite.translate.x, 0.01f, -10.0f, 10.0f);
-			ImGui::DragFloat2("UVScale", &uvTransformSprite.scale.x, 0.01f, -10.0f, 10.0f);
-			ImGui::SliderAngle("UVRotate", &uvTransformSprite.rotate.z);
-			
-			ImGui::End();
+			//ImGui::Begin("Triangle Color Picker");           // ウィンドウの開始
+			//ImGui::Checkbox("MonsterBall", &isChecked);
+			//ImGui::Checkbox("Light", &materialData->enableLighting);
+			//ImGui::DragFloat3("LightDirection", &directionalLightData->direction.x, 0.01f);
+			//directionalLightData->direction = Normalize(directionalLightData->direction);
+			//ImGui::ColorEdit4("Color", &materialData->color.x);
+			//ImGui::DragFloat3("ModelsPosition", &transforms[9].translate.x, 0.01f, -10.0f, 10.0f);
+			//ImGui::DragFloat3("ModelsRotate", &transforms[9].rotate.x, 0.01f, -10.0f, 10.0f);
+			//ImGui::DragFloat3("ModelsScale", &transforms[9].scale.x, 0.01f, -10.0f, 10.0f);
+			//ImGui::DragFloat3("ModelPosition", &transform.translate.x, 0.01f, -10.0f, 10.0f);
+			//ImGui::DragFloat3("ModelRotate", &transform.rotate.x, 0.01f, -10.0f, 10.0f);
+			//ImGui::DragFloat3("ModelScale", &transform.scale.x, 0.01f, -10.0f, 10.0f);
+			//ImGui::DragFloat3("Position", &transformSprite.translate.x, 1.0f, 0.0f, 1000.0f);  
+			//ImGui::DragFloat3("Rotation", &transformSprite.rotate.x, 0.01f, -10.0f, 10.0f);   
+			//ImGui::DragFloat3("Scale", &transformSprite.scale.x, 0.01f, -10.0f, 10.0f);       
+			//ImGui::DragFloat2("UVTranslate", &uvTransformSprite.translate.x, 0.01f, -10.0f, 10.0f);
+			//ImGui::DragFloat2("UVScale", &uvTransformSprite.scale.x, 0.01f, -10.0f, 10.0f);
+			//ImGui::SliderAngle("UVRotate", &uvTransformSprite.rotate.z);
+			//
+			//ImGui::End();
 
+			ImGui::Begin("Model");
+			ImGui::DragFloat3("ModelsPosition", &transforms[9].translate.x, 0.01f, -10.0f, 10.0f);
+			ImGui::DragFloat3("ModelsRotate", &transforms[9].rotate.x, 0.01f, -10.0f, 10.0f);
+			ImGui::DragFloat3("ModelsScale", &transforms[9].scale.x, 0.01f, -10.0f, 10.0f);
+			ImGui::End();
 
 
 
@@ -1449,7 +1457,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			commandList->SetGraphicsRootConstantBufferView(0, materialResource->GetGPUVirtualAddress());
 			//wvp用のCBufferの場所を設定
 			//commandList->SetGraphicsRootConstantBufferView(1, wvpResource->GetGPUVirtualAddress());
-			commandList->SetGraphicsRootConstantBufferView(1, transformationMatrixResource->GetGPUVirtualAddress());
+			//commandList->SetGraphicsRootConstantBufferView(1, transformationMatrixResource->GetGPUVirtualAddress());
 			
 			commandList->SetGraphicsRootDescriptorTable(1, instancingSrvHandleGPU);
 			//SRVのDescriptorTableの先頭を設定。２はrootParameter[2]である。
