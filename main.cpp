@@ -216,9 +216,9 @@ ModelData LoadObjFile(const std::string& directoryPath, const std::string& filen
 				triangle[faceVertex] = { position,texcoord,normal };
 			}
 			//頂点を逆順で登録することで、回り順を逆にする
-			modelData.vertices.push_back(triangle[0]);
-			modelData.vertices.push_back(triangle[1]);
 			modelData.vertices.push_back(triangle[2]);
+			modelData.vertices.push_back(triangle[1]);
+			modelData.vertices.push_back(triangle[0]);
 		}
 	}
 
@@ -1397,6 +1397,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			ImGui::DragFloat3("ModelsPosition", &transforms[9].translate.x, 0.01f, -10.0f, 10.0f);
 			ImGui::DragFloat3("ModelsRotate", &transforms[9].rotate.x, 0.01f, -10.0f, 10.0f);
 			ImGui::DragFloat3("ModelsScale", &transforms[9].scale.x, 0.01f, -10.0f, 10.0f);
+			ImGui::DragFloat3("CameraPosition", &cameraTransform.translate.x, 0.01f, -10.0f, 10.0f);
+			ImGui::DragFloat3("CameraRotate", &cameraTransform.rotate.x, 0.01f, -10.0f, 10.0f);
 			ImGui::End();
 
 
@@ -1434,7 +1436,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 			float clearColor[] = { 0.1f,0.25f,0.5f,1.0f };
 			commandList->ClearRenderTargetView(rtvHandles[backBufferIndex], clearColor, 0, nullptr);
-
+			//指定した深度で画面全体をクリアする
+			commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
 
 			//ImGuiの内部コマンドを生成する
@@ -1476,8 +1479,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			//描画（DrawCall/ドローコール）。３頂点で１つのインスタンス。インスタンスについては今後
 			//commandList->DrawInstanced(6, 1, 0, 0);
 			commandList->DrawInstanced(UINT(modelData.vertices.size()), kNumInstance, 0, 0);
-			//指定した深度で画面全体をクリアする
-			//commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+
 			//////マテリアルCBufferの場所を設定
 			////commandList->SetGraphicsRootConstantBufferView(0, materialResourceSprite->GetGPUVirtualAddress());
 			////spriteの描画
