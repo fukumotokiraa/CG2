@@ -34,7 +34,7 @@ PixelShaderOutput main(VertexShaderOutput input)
     float4 textureColor = gTexture.Sample(gSampler, transformedUV.xy);
     float3 toEye = normalize(gCamera.worldPosition - input.worldPosition);
     //float3 reflectLight = reflect(normalize(-gDirectionalLight.direction), normalize(input.normal));
-    float3 halfVector = normalize(-gDirectionalLight.direction + toEye);
+    float3 halfVector = reflect(normalize(gDirectionalLight.direction + toEye),normalize(input.normal));
     float NdotH = dot(normalize(input.normal), halfVector);
 
     //float RdotE = dot(reflectLight, toEye);
