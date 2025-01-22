@@ -33,9 +33,12 @@ PixelShaderOutput main(VertexShaderOutput input)
     float4 transformedUV = mul(float4(input.texcoord,0.0f, 1.0f), gMaterial.uvTransform);
     float4 textureColor = gTexture.Sample(gSampler, transformedUV.xy);
     float3 toEye = normalize(gCamera.worldPosition - input.worldPosition);
-    float3 reflectLight = reflect(normalize(-gDirectionalLight.direction), normalize(input.normal));
-    float RdotE = dot(reflectLight, toEye);
-    float specularPow = pow(saturate(RdotE), gMaterial.shininess);
+    //float3 reflectLight = reflect(normalize(-gDirectionalLight.direction), normalize(input.normal));
+    float3 halfVector = normalize(-gDirectionalLight.direction + toEye);
+    float NdotH = dot(normalize(input.normal), halfVector);
+
+    //float RdotE = dot(reflectLight, toEye);
+    float specularPow = pow(saturate(NdotH), gMaterial.shininess);
 
     float NdotL = dot(normalize(input.normal), -gDirectionalLight.direction);
     float cos = pow(NdotL * 0.5f + 0.5f, 2.0f);
