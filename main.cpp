@@ -26,6 +26,7 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg
 #include<vector>
 #include<fstream>
 #include<sstream>
+#include<random>
 
 
 #pragma comment(lib,"d3d12.lib")
@@ -53,9 +54,10 @@ struct Material {
 	Matrix4x4 uvTransform;
 };
 
-struct TransformationMatrix {
+struct ParticleForGPU {
 	Matrix4x4 WVP;
 	Matrix4x4 World;
+	Vector4 color;
 };
 
 struct DirectionalLight {
@@ -71,6 +73,12 @@ struct MaterialData {
 struct ModelData {
 	std::vector<VertexData>vertices;
 	MaterialData material;
+};
+
+struct Particle {
+	Transform transform;
+	Vector3 velocity;
+	Vector4 color;
 };
 
 std::wstring ConvertString(const std::string& str) {
@@ -629,6 +637,18 @@ struct D3DResourceLeakChecker {
 	}
 };
 
+Particle MakeNewParicle(std::mt19937& randomEngine) {
+	std::uniform_real_distribution<float>distribution(-1.0f, 1.0f);
+	std::uniform_real_distribution<float>distColor(0.0f, 1.0f);
+	Particle particle;
+	particle.transform.scale = { 1.0f,1.0f,1.0f };
+	particle.transform.rotate = { 0.0f,0.0f,0.0f };
+	particle.transform.translate = { distribution(randomEngine),distribution(randomEngine),distribution(randomEngine) };
+	particle.velocity = { distribution(randomEngine),distribution(randomEngine), distribution(randomEngine) };
+	particle.color = { distColor(randomEngine),distColor(randomEngine),distColor(randomEngine),1.0f };
+	return particle;
+}
+
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	D3DResourceLeakChecker leakCheck;
 	CoInitializeEx(0, COINIT_MULTITHREADED);
@@ -647,10 +667,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	const uint32_t kSubdivision = 16;
 	const uint32_t kNumVertex = kSubdivision * kSubdivision * 6;
 
-	
-
 	const int32_t kClientWidth = 1280;
 	const int32_t kClientHeight = 720;
+
+	std::random_device seedGenerator;
+	std::mt19937 randomEngine(seedGenerator());
+
 	RECT wrc = { 0,0,kClientWidth,kClientHeight };
 	AdjustWindowRect(&wrc, WS_OVERLAPPEDWINDOW, false);
 
@@ -824,17 +846,24 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	const uint32_t desriptorSizeRTV = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 	const uint32_t desriptorSizeDSV = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
 
-
 	const uint32_t kNumInstance = 10;
+	Particle particles[kNumInstance];
+	for (uint32_t index = 0; index < kNumInstance; ++index) {
+		particles[index] = MakeNewParicle(randomEngine);
+	}
+
+	const float kDeltaTime = 1.0f / 60.0f;
+
 	//Instancing用のTransformationMatrixリソースを作る
-	Microsoft::WRL::ComPtr<ID3D12Resource> instancingResource = CreateBufferResource(device, sizeof(TransformationMatrix) * kNumInstance);
+	Microsoft::WRL::ComPtr<ID3D12Resource> instancingResource = CreateBufferResource(device, sizeof(ParticleForGPU) * kNumInstance);
 	//書き込むためのアドレスを取得
-	TransformationMatrix* instancingData = nullptr;
+	ParticleForGPU* instancingData = nullptr;
 	instancingResource->Map(0, nullptr, reinterpret_cast<void**>(&instancingData));
 	//単位行列を書き込んでおく
 	for (uint32_t index = 0; index < kNumInstance; ++index) {
 		instancingData[index].WVP = MakeIdentity4x4();
 		instancingData[index].World = MakeIdentity4x4();
+		instancingData[index].color = particles[index].color;
 	}
 
 	D3D12_SHADER_RESOURCE_VIEW_DESC instancingSrvDesc{};
@@ -844,17 +873,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	instancingSrvDesc.Buffer.FirstElement = 0;
 	instancingSrvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
 	instancingSrvDesc.Buffer.NumElements = kNumInstance;
-	instancingSrvDesc.Buffer.StructureByteStride = sizeof(TransformationMatrix);
+	instancingSrvDesc.Buffer.StructureByteStride = sizeof(ParticleForGPU);
 	D3D12_CPU_DESCRIPTOR_HANDLE instancingSrvHandleCPU = GetCPUDescriptorHandle(srvDescriptorHeap, desriptorSizeSRV, 3);
 	D3D12_GPU_DESCRIPTOR_HANDLE instancingSrvHandleGPU = GetGPUDescriptorHandle(srvDescriptorHeap, desriptorSizeSRV, 3);
 	device->CreateShaderResourceView(instancingResource.Get(), &instancingSrvDesc, instancingSrvHandleCPU);
 
-	Transform transforms[kNumInstance];
-	for (uint32_t index = 0; index < kNumInstance; ++index) {
-		transforms[index].scale = { 1.0f,1.0f,1.0f };
-		transforms[index].rotate = { 0.0f,0.0f,0.0f };
-		transforms[index].translate = { index * 0.1f,index * 0.1f,index * 0.1f };
-	}
+
 
 
 	//モデル読み込み
@@ -1261,9 +1285,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	scissorRect.bottom = kClientHeight;
 
 	////WVP用のリソースを作る。Matrix4x4 １つ分のサイズを用意する
-	//ID3D12Resource* wvpResource = CreateBufferResource(device, sizeof(TransformationMatrix));
+	//ID3D12Resource* wvpResource = CreateBufferResource(device, sizeof(ParticleForGPU));
 	////データを書き込む
-	//TransformationMatrix* wvpData = nullptr;
+	//ParticleForGPU* wvpData = nullptr;
 	////書き込むためのアドレスを取得
 	//wvpResource->Map(0, nullptr, reinterpret_cast<void**>(&wvpData));
 	////単位行列を書き込んでおく
@@ -1272,9 +1296,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	//wvpData->WVP = MakeIdentity4x4();
 
 	// TransformationMatrix用のリソースを作る。Matrix4x4 ２つ分のサイズを用意する
-	Microsoft::WRL::ComPtr < ID3D12Resource> transformationMatrixResource = CreateBufferResource(device, sizeof(TransformationMatrix));
+	Microsoft::WRL::ComPtr < ID3D12Resource> transformationMatrixResource = CreateBufferResource(device, sizeof(ParticleForGPU));
 	// データを書き込む
-	TransformationMatrix* transformationMatrixData = nullptr;
+	ParticleForGPU* transformationMatrixData = nullptr;
 	// 書き込むためのアドレスを取得
 	transformationMatrixResource->Map(0, nullptr, reinterpret_cast<void**>(&transformationMatrixData));
 	// 単位行列を書き込んでおく
@@ -1318,9 +1342,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	vertexDataSprite[3].position = { 640.0f,0.0f,0.0f,1.0f };
 	vertexDataSprite[3].texcoord = { 1.0f,0.0f };
 	//Sprite用のTransformationMatrix用のリソースを作る。Matrix4x4 1つ分のサイズを用意する
-	Microsoft::WRL::ComPtr < ID3D12Resource> transformationMatrixResourceSprite = CreateBufferResource(device, sizeof(TransformationMatrix));
+	Microsoft::WRL::ComPtr < ID3D12Resource> transformationMatrixResourceSprite = CreateBufferResource(device, sizeof(ParticleForGPU));
 	//データを書き込む
-	TransformationMatrix* transformationMatrixDataSprite = nullptr;
+	ParticleForGPU* transformationMatrixDataSprite = nullptr;
 	//書き込むためのアドレスを取得
 	transformationMatrixResourceSprite->Map(0, nullptr, reinterpret_cast<void**>(&transformationMatrixDataSprite));
 	//単位行列を書き込んでおく
@@ -1336,9 +1360,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	Transform transformSprite{ {1.0f,1.0f,1.0f},{0.0f,0.0f,0.0f},{0.0f,0.0f,0.0f} };
 
 
-
-
-
 	//uint32_t* indexDataSphere = nullptr;
 	//indexResourceSphere->Map(0, nullptr, reinterpret_cast<void**>(&indexDataSphere));
 	//indexDataSphere[0] = 0; indexDataSphere[1] = 1; indexDataSphere[2] = 2;
@@ -1351,10 +1372,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	//indexBufferViewSphere.SizeInBytes = sizeof(uint32_t) * (uint32_t)indices.size();
 	//indexBufferViewSphere.Format = DXGI_FORMAT_R32_UINT;
 
-	//ID3D12Resource* wvpResource = CreateBufferResource(device, sizeof(TransformationMatrix));
-	//TransformationMatrix* wvpDatas = nullptr;
+	//ID3D12Resource* wvpResource = CreateBufferResource(device, sizeof(ParticleForGPU));
+	//ParticleForGPU* wvpDatas = nullptr;
 	//wvpResource->Map(0, nullptr, reinterpret_cast<void**>(&wvpDatas));
 	//wvpDatas->World = MakeIdentity4x4();
+
+
+
 
 
 
@@ -1394,9 +1418,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			//ImGui::End();
 
 			ImGui::Begin("Model");
-			ImGui::DragFloat3("ModelsPosition", &transforms[9].translate.x, 0.01f, -10.0f, 10.0f);
-			ImGui::DragFloat3("ModelsRotate", &transforms[9].rotate.x, 0.01f, -10.0f, 10.0f);
-			ImGui::DragFloat3("ModelsScale", &transforms[9].scale.x, 0.01f, -10.0f, 10.0f);
+			ImGui::DragFloat3("ModelsPosition", &particles[9].transform.translate.x, 0.01f, -10.0f, 10.0f);
+			ImGui::DragFloat3("ModelsRotate", &particles[9].transform.rotate.x, 0.01f, -10.0f, 10.0f);
+			ImGui::DragFloat3("ModelsScale", &particles[9].transform.scale.x, 0.01f, -10.0f, 10.0f);
 			ImGui::DragFloat3("CameraPosition", &cameraTransform.translate.x, 0.01f, -10.0f, 10.0f);
 			ImGui::DragFloat3("CameraRotate", &cameraTransform.rotate.x, 0.01f, -10.0f, 10.0f);
 			ImGui::End();
@@ -1530,10 +1554,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			//transformationMatrixData->WVP = worldViewProjectionMatrix;
 
 			for (uint32_t index = 0; index < kNumInstance; ++index) {
-				Matrix4x4 worldMatrix = MakeAffineMatrix(transforms[index].scale, transforms[index].rotate, transforms[index].translate);
+				Matrix4x4 worldMatrix = MakeAffineMatrix(particles[index].transform.scale, particles[index].transform.rotate, particles[index].transform.translate);
 				Matrix4x4 worldViewProjectionMatrix = Multiply(worldMatrix, Multiply(viewMatrix, projectionMatrix));
 				instancingData[index].WVP = worldViewProjectionMatrix;
 				instancingData[index].World = worldMatrix;
+				particles[index].transform.translate.x += particles[index].velocity.x * kDeltaTime;
+				particles[index].transform.translate.y += particles[index].velocity.y * kDeltaTime;
+				particles[index].transform.translate.z += particles[index].velocity.z * kDeltaTime;
 			}
 
 			hr = commandList->Close();
