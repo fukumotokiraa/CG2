@@ -4,8 +4,9 @@ struct ParticleForGPU
 {
     float4x4 WVP;
     float4x4 World;
+    float4 color;
 };
-ConstantBuffer<ParticleForGPU> gTransformationMatrix : register(b0);
+ConstantBuffer<ParticleForGPU> gParticle : register(b0);
 
 //struct VertexShaderOutput
 //{
@@ -22,8 +23,9 @@ struct VertexShaderInput
 VertexShaderOutput main( VertexShaderInput input ) 
 {
     VertexShaderOutput output;
-    output.position = mul(input.position, gTransformationMatrix.WVP);
+    output.position = mul(input.position, gParticle.WVP);
     output.texcoord = input.texcoord;
-    output.normal = normalize(mul(input.normal, (float3x3) gTransformationMatrix.World));
+    output.normal = normalize(mul(input.normal, (float3x3) gParticle.World));
+    output.color = gParticle[InstanceID].color;
 	return output;
 }
