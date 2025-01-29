@@ -27,6 +27,7 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg
 #include<fstream>
 #include<sstream>
 #include<random>
+#include<numbers>
 
 
 #pragma comment(lib,"d3d12.lib")
@@ -668,6 +669,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	OutputDebugStringA("Hello,DirectX!\n");
 
 	bool isChecked = true;
+	bool useBillBoard = true;
 
 	const uint32_t kSubdivision = 16;
 	const uint32_t kNumVertex = kSubdivision * kSubdivision * 6;
@@ -1317,7 +1319,15 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 	//Transform変数を作る
 	Transform transform{ {1.0f,1.0f,1.0f},{0.0f,0.0f,0.0f},{0.0f,0.0f,0.0f} };
-	Transform cameraTransform{ {1.0f,1.0f,1.0f},{0.0f,0.0f,0.0f},{0.0f,0.0f,-10.0f} };
+	Transform cameraTransform{ {1.0f,1.0f,1.0f},{std::numbers::pi_v<float>/3,std::numbers::pi_v<float>,0.0f},{0.0f,23.0f,10.0f} };
+
+
+	Vector3 scale = { 1.0f,1.0f,1.0f };
+	Vector3 translate = { 0.0f,0.0f,0.0f };
+
+	Matrix4x4 scaleMatrix = MakeScaleMatrix(scale);
+	Matrix4x4 translateMatrix = MakeTranslateMatrix(translate);
+
 
 	//ImGuiの初期化。
 	IMGUI_CHECKVERSION();
@@ -1425,12 +1435,14 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			//
 			//ImGui::End();
 
+
 			ImGui::Begin("Model");
 			ImGui::DragFloat3("ModelsPosition", &particles[9].transform.translate.x, 0.01f, -10.0f, 10.0f);
 			ImGui::DragFloat3("ModelsRotate", &particles[9].transform.rotate.x, 0.01f, -10.0f, 10.0f);
 			ImGui::DragFloat3("ModelsScale", &particles[9].transform.scale.x, 0.01f, -10.0f, 10.0f);
 			ImGui::DragFloat3("CameraPosition", &cameraTransform.translate.x, 0.01f, -10.0f, 10.0f);
 			ImGui::DragFloat3("CameraRotate", &cameraTransform.rotate.x, 0.01f, -10.0f, 10.0f);
+			ImGui::Checkbox("Billboard", &useBillBoard);
 			ImGui::End();
 
 
@@ -1520,6 +1532,17 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 					continue;
 				}
 				Matrix4x4 worldMatrix = MakeAffineMatrix(particles[index].transform.scale, particles[index].transform.rotate, particles[index].transform.translate);
+
+				if (useBillBoard) {
+				Matrix4x4 backToFrontMatrix = MakeRotateYMatrix(std::numbers::pi_v<float>);
+				Matrix4x4 billboardMatrix = Multiply(backToFrontMatrix, cameraMatrix);
+				billboardMatrix.m[3][0] = 0.0f;
+				billboardMatrix.m[3][1] = 0.0f;
+				billboardMatrix.m[3][2] = 0.0f;
+
+				worldMatrix = Multiply(worldMatrix, billboardMatrix);
+			}
+
 				Matrix4x4 worldViewProjectionMatrix = Multiply(worldMatrix, Multiply(viewMatrix, projectionMatrix));
 				float alpha = 1.0f - particles[index].currentTime / particles[index].lifeTime;
 				particles[index].transform.translate.x += particles[index].velocity.x * kDeltaTime;
@@ -1531,6 +1554,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 				instancingData[numInstance].color.w = alpha;
 				numInstance++;
 			}
+
+
+			//Matrix4x4 worldMatrix = Multiply(scaleMatrix, Multiply(billboardMatrix, translateMatrix));
+
 			commandList->DrawInstanced(UINT(modelData.vertices.size()), numInstance, 0, 0);
 
 			//////マテリアルCBufferの場所を設定
