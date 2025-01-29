@@ -79,6 +79,8 @@ struct Particle {
 	Transform transform;
 	Vector3 velocity;
 	Vector4 color;
+	float lifeTime;
+	float currentTime;
 };
 
 std::wstring ConvertString(const std::string& str) {
@@ -640,12 +642,15 @@ struct D3DResourceLeakChecker {
 Particle MakeNewParicle(std::mt19937& randomEngine) {
 	std::uniform_real_distribution<float>distribution(-1.0f, 1.0f);
 	std::uniform_real_distribution<float>distColor(0.0f, 1.0f);
+	std::uniform_real_distribution<float>distTime(1.0f, 3.0f);
 	Particle particle;
 	particle.transform.scale = { 1.0f,1.0f,1.0f };
 	particle.transform.rotate = { 0.0f,0.0f,0.0f };
 	particle.transform.translate = { distribution(randomEngine),distribution(randomEngine),distribution(randomEngine) };
 	particle.velocity = { distribution(randomEngine),distribution(randomEngine), distribution(randomEngine) };
 	particle.color = { distColor(randomEngine),distColor(randomEngine),distColor(randomEngine),1.0f };
+	particle.lifeTime = distTime(randomEngine);
+	particle.currentTime = 0;
 	return particle;
 }
 
@@ -846,25 +851,28 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	const uint32_t desriptorSizeRTV = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 	const uint32_t desriptorSizeDSV = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
 
-	const uint32_t kNumInstance = 10;
-	Particle particles[kNumInstance];
-	for (uint32_t index = 0; index < kNumInstance; ++index) {
+	const uint32_t kNumMaxInstance = 10;
+
+	Particle particles[kNumMaxInstance];
+	for (uint32_t index = 0; index < kNumMaxInstance; ++index) {
 		particles[index] = MakeNewParicle(randomEngine);
 	}
-
 	const float kDeltaTime = 1.0f / 60.0f;
 
 	//Instancing用のTransformationMatrixリソースを作る
-	Microsoft::WRL::ComPtr<ID3D12Resource> instancingResource = CreateBufferResource(device, sizeof(ParticleForGPU) * kNumInstance);
+	Microsoft::WRL::ComPtr<ID3D12Resource> instancingResource = CreateBufferResource(device, sizeof(ParticleForGPU) * kNumMaxInstance);
 	//書き込むためのアドレスを取得
 	ParticleForGPU* instancingData = nullptr;
 	instancingResource->Map(0, nullptr, reinterpret_cast<void**>(&instancingData));
 	//単位行列を書き込んでおく
-	for (uint32_t index = 0; index < kNumInstance; ++index) {
+	for (uint32_t index = 0; index < kNumMaxInstance; ++index) {
 		instancingData[index].WVP = MakeIdentity4x4();
 		instancingData[index].World = MakeIdentity4x4();
 		instancingData[index].color = particles[index].color;
 	}
+
+
+
 
 	D3D12_SHADER_RESOURCE_VIEW_DESC instancingSrvDesc{};
 	instancingSrvDesc.Format = DXGI_FORMAT_UNKNOWN;
@@ -872,7 +880,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	instancingSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
 	instancingSrvDesc.Buffer.FirstElement = 0;
 	instancingSrvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
-	instancingSrvDesc.Buffer.NumElements = kNumInstance;
+	instancingSrvDesc.Buffer.NumElements = kNumMaxInstance;
 	instancingSrvDesc.Buffer.StructureByteStride = sizeof(ParticleForGPU);
 	D3D12_CPU_DESCRIPTOR_HANDLE instancingSrvHandleCPU = GetCPUDescriptorHandle(srvDescriptorHeap, desriptorSizeSRV, 3);
 	D3D12_GPU_DESCRIPTOR_HANDLE instancingSrvHandleGPU = GetGPUDescriptorHandle(srvDescriptorHeap, desriptorSizeSRV, 3);
@@ -882,7 +890,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 
 	//モデル読み込み
-	ModelData modelData = LoadObjFile("resources", "axis.obj");
+	ModelData modelData = LoadObjFile("resources", "plane.obj");
 	//頂点リソースを作る
 	Microsoft::WRL::ComPtr < ID3D12Resource> vertexResource = CreateBufferResource(device, sizeof(VertexData) * modelData.vertices.size());
 	//頂点バッファビューを作成する
@@ -902,7 +910,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	std::memcpy(vertexData, modelData.vertices.data(), sizeof(VertexData)* modelData.vertices.size());//頂点データをリソースにコピー
 
 	//Textureを読んで転送する
-	DirectX::ScratchImage mipImages = LoadTexture("resources/uvChecker.png");
+	DirectX::ScratchImage mipImages = LoadTexture("resources/circle.png");
 	const DirectX::TexMetadata& metadata = mipImages.GetMetadata();
 	Microsoft::WRL::ComPtr < ID3D12Resource> textureResource = CreateTextureResorce(device, metadata);
 	UploadTextureData(textureResource, mipImages);
@@ -1113,7 +1121,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	blendDesc.RenderTarget[0].BlendEnable = TRUE;
 	blendDesc.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
 	blendDesc.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
-	blendDesc.RenderTarget[0].DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+	blendDesc.RenderTarget[0].DestBlend = D3D12_BLEND_ONE;
 	blendDesc.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
 	blendDesc.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
 	blendDesc.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ZERO;
@@ -1161,7 +1169,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	//Depthの機能を有効化する
 	depthStencilDesc.DepthEnable = true;
 	//書き込みをします
-	depthStencilDesc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+	depthStencilDesc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
 	//比較関数はLessEqual。つまり、近ければ描画される
 	depthStencilDesc.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
 
@@ -1502,7 +1510,28 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			//commandList->DrawIndexedInstanced(kNumVertex, 1, 0, 0, 0);
 			//描画（DrawCall/ドローコール）。３頂点で１つのインスタンス。インスタンスについては今後
 			//commandList->DrawInstanced(6, 1, 0, 0);
-			commandList->DrawInstanced(UINT(modelData.vertices.size()), kNumInstance, 0, 0);
+			Matrix4x4 cameraMatrix = MakeAffineMatrix(cameraTransform.scale, cameraTransform.rotate, cameraTransform.translate);
+			Matrix4x4 viewMatrix = Inverse(cameraMatrix);
+			Matrix4x4 projectionMatrix = MakePerspectiveFovMatrix(0.45f, float(kClientWidth) / float(kClientHeight), 0.1f, 100.0f);
+			uint32_t numInstance = 0;
+			for (uint32_t index = 0; index < kNumMaxInstance; ++index) {
+				particles[index].currentTime += kDeltaTime;
+				if (particles[index].lifeTime <= particles[index].currentTime) {
+					continue;
+				}
+				Matrix4x4 worldMatrix = MakeAffineMatrix(particles[index].transform.scale, particles[index].transform.rotate, particles[index].transform.translate);
+				Matrix4x4 worldViewProjectionMatrix = Multiply(worldMatrix, Multiply(viewMatrix, projectionMatrix));
+				float alpha = 1.0f - particles[index].currentTime / particles[index].lifeTime;
+				particles[index].transform.translate.x += particles[index].velocity.x * kDeltaTime;
+				particles[index].transform.translate.y += particles[index].velocity.y * kDeltaTime;
+				particles[index].transform.translate.z += particles[index].velocity.z * kDeltaTime;
+				instancingData[numInstance].WVP = worldViewProjectionMatrix;
+				instancingData[numInstance].World = worldMatrix;
+				instancingData[numInstance].color = particles[index].color;
+				instancingData[numInstance].color.w = alpha;
+				numInstance++;
+			}
+			commandList->DrawInstanced(UINT(modelData.vertices.size()), numInstance, 0, 0);
 
 			//////マテリアルCBufferの場所を設定
 			////commandList->SetGraphicsRootConstantBufferView(0, materialResourceSprite->GetGPUVirtualAddress());
@@ -1547,21 +1576,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			//Matrix4x4 worldMatrix = MakeAffineMatrix(transform.scale, transform.rotate, transform.translate);
 			//transformationMatrixData->World = worldMatrix;
 
-			Matrix4x4 cameraMatrix = MakeAffineMatrix(cameraTransform.scale, cameraTransform.rotate, cameraTransform.translate);
-			Matrix4x4 viewMatrix = Inverse(cameraMatrix);
-			Matrix4x4 projectionMatrix = MakePerspectiveFovMatrix(0.45f, float(kClientWidth) / float(kClientHeight), 0.1f, 100.0f);
+
 			//Matrix4x4 worldViewProjectionMatrix = Multiply(worldMatrix, Multiply(viewMatrix, projectionMatrix));
 			//transformationMatrixData->WVP = worldViewProjectionMatrix;
 
-			for (uint32_t index = 0; index < kNumInstance; ++index) {
-				Matrix4x4 worldMatrix = MakeAffineMatrix(particles[index].transform.scale, particles[index].transform.rotate, particles[index].transform.translate);
-				Matrix4x4 worldViewProjectionMatrix = Multiply(worldMatrix, Multiply(viewMatrix, projectionMatrix));
-				instancingData[index].WVP = worldViewProjectionMatrix;
-				instancingData[index].World = worldMatrix;
-				particles[index].transform.translate.x += particles[index].velocity.x * kDeltaTime;
-				particles[index].transform.translate.y += particles[index].velocity.y * kDeltaTime;
-				particles[index].transform.translate.z += particles[index].velocity.z * kDeltaTime;
-			}
+
 
 			hr = commandList->Close();
 			assert(SUCCEEDED(hr));
