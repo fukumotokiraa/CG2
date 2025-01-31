@@ -1,3 +1,4 @@
+#define NOMINMAX
 #include<Windows.h>
 #include <windows.h>
 #include<d3d12.h>
@@ -28,12 +29,23 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg
 #include<sstream>
 #include<random>
 #include<numbers>
+#include<algorithm>
 
 
 #pragma comment(lib,"d3d12.lib")
 #pragma comment(lib,"dxgi.lib")
 #pragma comment(lib,"dxguid.lib")
 #pragma comment(lib,"dxcompiler.lib")
+
+struct AABB {
+	Vector3 min;
+	Vector3 max;
+};
+
+struct Sphere {
+	Vector3 center;
+	float radius;
+};
 
 struct Transform {
 	Vector3 scale;
@@ -90,6 +102,13 @@ struct Emitter {
 	float frequency;//!<発生頻度
 	float frequencyTime;//!<頻度用時刻
 };
+
+struct AccelerationField {
+	Vector3 acceleration;//!<加速度
+	AABB area;//!<範囲
+};
+
+Vector3 Subtract(const Vector3& v1, const Vector3& v2) { return { v1.x - v2.x, v1.y - v2.y, v1.z - v2.z }; }
 
 std::wstring ConvertString(const std::string& str) {
 	if (str.empty()) {
@@ -674,6 +693,40 @@ std::list<Particle> Emit(const Emitter& emitter, std::mt19937& randomEngine) {
 	return particles;
 }
 
+bool isCollision(const AABB& aabb1, const AABB& aabb2) {
+	// 各軸において重なっているかを確認
+	if (aabb1.max.x < aabb2.min.x || aabb1.min.x > aabb2.max.x) return false;
+	if (aabb1.max.y < aabb2.min.y || aabb1.min.y > aabb2.max.y) return false;
+	if (aabb1.max.z < aabb2.min.z || aabb1.min.z > aabb2.max.z) return false;
+
+	// すべての軸で重なっている場合、衝突している
+	return true;
+}
+
+bool isCollision(const AABB& aabb, const Sphere& sphere) {
+	// AABBの最近接点を求める
+	Vector3 closestPoint;
+	closestPoint.x = std::max(aabb.min.x, std::min(sphere.center.x, aabb.max.x));
+	closestPoint.y = std::max(aabb.min.y, std::min(sphere.center.y, aabb.max.y));
+	closestPoint.z = std::max(aabb.min.z, std::min(sphere.center.z, aabb.max.z));
+
+	// 球の中心と最近接点の距離を計算する
+	float distance = Length(Subtract(closestPoint, sphere.center));
+
+	// 距離が球の半径以下であれば衝突していると判定する
+	return distance <= sphere.radius;
+}
+
+bool isCollision(const AABB& aabb, const Vector3& point) {
+	// 各軸において点がAABBの範囲内にあるかを確認
+	if (point.x < aabb.min.x || point.x > aabb.max.x) return false;
+	if (point.y < aabb.min.y || point.y > aabb.max.y) return false;
+	if (point.z < aabb.min.z || point.z > aabb.max.z) return false;
+
+	// すべての軸で範囲内にある場合、衝突している
+	return true;
+}
+
 
 
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
@@ -691,6 +744,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 	bool isChecked = true;
 	bool useBillBoard = true;
+	bool applyField = true;
 
 	const uint32_t kSubdivision = 16;
 	const uint32_t kNumVertex = kSubdivision * kSubdivision * 6;
@@ -705,6 +759,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	emitter.transform.translate = { 0.0f,0.0f,0.0f };
 	emitter.transform.rotate = { 0.0f,0.0f,0.0f };
 	emitter.transform.scale = { 1.0f,1.0f,1.0f };
+
+	AccelerationField accelerationField;
+	accelerationField.acceleration = { 15.0f,0.0f,0.0f };
+	accelerationField.area.min = { -1.0f,-1.0f,-1.0f };
+	accelerationField.area.max = { 1.0f,1.0f,1.0f };
 
 	std::random_device seedGenerator;
 	std::mt19937 randomEngine(seedGenerator());
@@ -1468,6 +1527,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			if(ImGui::Button("Add Particle")) {
 				particles.splice(particles.end(), Emit(emitter, randomEngine));
 			}
+			ImGui::Checkbox("Apply Field", &applyField);
 			ImGui::DragFloat3("EmitterTranslate", &emitter.transform.translate.x, 0.01f, -100.0f, 100.0f);
 			ImGui::End();
 
@@ -1595,6 +1655,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 					Matrix4x4 worldViewProjectionMatrix = Multiply(worldMatrix, Multiply(viewMatrix, projectionMatrix));
 					float alpha = 1.0f - (*particleIterator).currentTime / (*particleIterator).lifeTime;
+					if(applyField && isCollision(accelerationField.area,(*particleIterator).transform.translate)) {
+						(*particleIterator).velocity.x += accelerationField.acceleration.x * kDeltaTime;
+						(*particleIterator).velocity.y += accelerationField.acceleration.y * kDeltaTime;
+						(*particleIterator).velocity.z += accelerationField.acceleration.z * kDeltaTime;
+					}
 					(*particleIterator).transform.translate.x += (*particleIterator).velocity.x * kDeltaTime;
 					(*particleIterator).transform.translate.y += (*particleIterator).velocity.y * kDeltaTime;
 					(*particleIterator).transform.translate.z += (*particleIterator).velocity.z * kDeltaTime;
